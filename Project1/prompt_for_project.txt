@@ -1,0 +1,290 @@
+Prompt for Droid:
+
+Create a Universal Banking AI Customer Support Agent with multi-bank support for Indian banks
+with Voice input and Regional Language support. The project should have:
+
+**Project Structure:**
+- Root folder: banking-ai-support-agent in Downloads directory
+- Backend:
+  backend/app/api/routes
+  backend/app/core
+  backend/app/services
+  backend/app/services/ai
+  backend/app/services/voice
+- Frontend:
+  frontend/ (React + Vite + Tailwind CSS)
+- Config:
+  .env file at project root
+
+--------------------------------------------------
+
+**Backend (FastAPI):**
+
+1. **Routes (backend/app/api/routes/):**
+   - chat.py:
+     POST /api/v1/chat/
+     params: message, session_id, selected_bank, language_code
+   - voice.py:
+     POST /api/v1/voice/transcribe/
+     Accepts audio file (multipart), returns transcribed + translated text
+     POST /api/v1/voice/translate/
+     Accepts text + source_lang + target_lang, returns translated text
+   - auth.py:
+     login/register endpoints with JWT
+   - health.py:
+     health check endpoint
+
+2. **Core (backend/app/core/):**
+   - config.py:
+     Pydantic Settings loading from .env with:
+     GROQ_API_KEY
+     GROQ_MODEL
+     WHISPER_MODEL (default: base)
+   - security.py:
+     JWT token handling using python-jose, passlib
+
+3. **Services (backend/app/services/):**
+   - bank_directory.py:
+     Contains BANK_DIRECTORY dict with info for:
+     SBI, HDFC, ICICI, Axis, Kotak, PNB, Bank of Baroda
+
+     Includes:
+     - Helpline numbers
+     - Website
+     - Mobile app names
+
+     Services:
+     - balance_check
+     - lost_card
+     - mini_statement
+     - fund_transfer (step-by-step instructions)
+
+     BANK_ALIASES for name detection
+
+     AUTOMATABLE_SERVICES:
+     - emi_calculator
+     - fd_calculator
+
+     Helper functions:
+     - detect_bank()
+     - detect_service()
+     - detect_automatable_service()
+     - calculate_emi()
+     - calculate_fd_maturity()
+
+--------------------------------------------------
+
+**Voice Service (backend/app/services/voice/):**
+
+   - whisper_service.py:
+     Speech-to-Text using OpenAI Whisper (local, offline, free):
+     - Load model: whisper.load_model("base")  # 74MB, fast
+     - transcribe(audio_file_path) -> returns transcribed text + detected language code
+     - Supports Indian languages: Hindi, Tamil, Telugu, Bengali,
+       Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia natively
+
+   - translation_service.py:
+     Translation using IndicTrans2 (AI4Bharat, local, offline, free):
+     - Supports 22 Indian languages
+     - translate(text, source_lang, target_lang) -> translated text
+     - SUPPORTED_LANGUAGES dict mapping language names to codes:
+       Hindi: hin_Deva, Tamil: tam_Taml, Telugu: tel_Telu,
+       Bengali: ben_Beng, Marathi: mar_Deva, Gujarati: guj_Gujr,
+       Kannada: kan_Knda, Malayalam: mal_Mlym, Punjabi: pan_Guru,
+       Odia: ory_Orya, English: eng_Latn
+     - Pipeline:
+       User audio -> Whisper (transcribe) -> IndicTrans2 (to English)
+       -> LangGraph Agent -> IndicTrans2 (to user language) -> Response
+
+--------------------------------------------------
+
+**AI Agent (backend/app/services/ai/agent.py):**
+
+BankingSupportAgent class built using LangChain and LangGraph frameworks:
+
+**LLM Integration (LangChain):**
+- Use ChatGroq from langchain_groq:
+  from langchain_groq import ChatGroq
+- Initialize:
+  llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.GROQ_MODEL)
+- Use LangChain message types:
+  from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+- Build prompt using ChatPromptTemplate:
+  from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+- Use RunnableWithMessageHistory for multi-turn conversation memory:
+  from langchain_core.runnables.history import RunnableWithMessageHistory
+- Store chat history using ChatMessageHistory:
+  from langchain_community.chat_message_histories import ChatMessageHistory
+
+**Agent Graph (LangGraph):**
+- Build a stateful agent graph using LangGraph:
+  from langgraph.graph import StateGraph, END
+- Define AgentState TypedDict with fields:
+  messages, session_id, selected_bank, detected_bank,
+  detected_service, escalate, calculator_result, language_code
+- Graph Nodes:
+  - detect_intent_node: detect bank, service, escalation, automatable service
+  - calculator_node: run EMI or FD calculator if needed
+  - llm_node: call ChatGroq via LangChain chain with enriched context
+  - escalation_node: append RBI Ombudsman advisory to response if escalation flagged
+- Graph Edges:
+  - START -> detect_intent_node
+  - detect_intent_node -> calculator_node (if automatable service detected)
+  - detect_intent_node -> llm_node (if no automatable service)
+  - calculator_node -> llm_node
+  - llm_node -> escalation_node (if escalate is True)
+  - llm_node -> END (if escalate is False)
+  - escalation_node -> END
+- Compile graph:
+  graph = workflow.compile()
+
+**BankingSupportAgent class:**
+- Initializes the LangGraph StateGraph and LangChain ChatGroq LLM
+- chat() method invokes the compiled graph with initial state
+- Returns dict: response, bank, service, escalate, calculator_result
+
+--------------------------------------------------
+
+**Frontend (React + Vite + Tailwind CSS):**
+
+frontend/ folder structure:
+  frontend/
+  ├── index.html
+  ├── vite.config.js
+  ├── tailwind.config.js
+  ├── package.json
+  └── src/
+      ├── main.jsx
+      ├── App.jsx
+      ├── api/
+      │   └── bankingApi.js        # Axios calls to FastAPI backend
+      ├── components/
+      │   ├── ChatWindow.jsx        # Chat bubble UI
+      │   ├── MessageBubble.jsx     # User/bot message bubbles
+      │   ├── VoiceRecorder.jsx     # Hold-to-speak mic button (MediaRecorder API)
+      │   ├── BankSelector.jsx      # Bank dropdown
+      │   ├── LanguageSelector.jsx  # Language dropdown (11 Indian languages)
+      │   ├── Sidebar.jsx           # Quick actions + EMI/FD calculator forms
+      │   ├── EscalationAlert.jsx   # RBI Ombudsman warning box
+      │   └── CalculatorResult.jsx  # EMI/FD result display card
+      └── hooks/
+          ├── useChat.js            # Chat state + send message logic
+          └── useVoice.js           # Audio recording + transcription logic
+
+**UI Design:**
+- Banking-grade professional theme using Tailwind CSS
+- Color scheme: Deep Blue (#003087) + Gold (#FFD700) + White
+- Fully responsive — works on mobile and desktop
+- Chat bubbles: user messages right-aligned (blue), bot messages left-aligned (white with gold left border)
+- Header: gradient deep blue with bank name and language indicator
+- Sidebar: Quick action buttons, EMI Calculator form, FD Calculator form
+- Voice button: large circular mic button — hold to record, release to send
+  Uses browser MediaRecorder API (no external library needed)
+- Language selector: dropdown showing 11 Indian languages by name
+  (Hindi, Tamil, Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, English)
+- Escalation alert: yellow warning card with RBI Ombudsman link
+- Calculator result: green card showing EMI/FD breakdown
+
+**Libraries (all free):**
+- axios: API calls to FastAPI backend
+- lucide-react: icons (mic, send, bank, language)
+- react-hot-toast: notifications
+
+--------------------------------------------------
+
+**Environment Variables (.env):**
+
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=llama3-70b-8192
+WHISPER_MODEL=base
+
+DATABASE_URL=
+REDIS_URL=
+SECRET_KEY=
+
+--------------------------------------------------
+
+**requirements.txt (Backend):**
+
+fastapi
+uvicorn[standard]
+python-multipart
+sqlalchemy
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic[email]
+pydantic-settings
+groq
+langchain
+langchain-core
+langchain-groq
+langchain-community
+langgraph
+openai-whisper
+indic-transliteration
+sentencepiece
+sacremoses
+soundfile
+numpy
+redis
+httpx
+loguru
+requests
+python-json-logger
+prometheus-client
+python-dotenv
+pyyaml
+tenacity
+phonenumbers
+email-validator
+
+**package.json (Frontend):**
+
+dependencies:
+  react, react-dom
+  axios
+  lucide-react
+  react-hot-toast
+
+devDependencies:
+  vite
+  @vitejs/plugin-react
+  tailwindcss
+  autoprefixer
+  postcss
+
+--------------------------------------------------
+
+**Run Commands:**
+
+Backend:
+uvicorn backend.app.main:app --reload
+
+Frontend:
+cd frontend
+npm install
+npm run dev
+
+--------------------------------------------------
+
+**Voice Flow Summary:**
+1. User holds mic button in browser
+2. Browser MediaRecorder captures audio -> sends as blob to POST /api/v1/voice/transcribe/
+3. Whisper base model transcribes audio -> detects language automatically
+4. IndicTrans2 translates transcribed text from detected language to English
+5. English text goes into LangGraph agent -> generates English response
+6. IndicTrans2 translates English response back to user's selected language
+7. Translated response displayed in chat bubble
+
+--------------------------------------------------
+
+Use uv for backend package installation.
+Use npm for frontend package installation.
+No testing packages needed.
+
+--------------------------------------------------
+
+Copy this prompt to recreate the project on another system.
+
+Auto (Off) - all actions require approval
