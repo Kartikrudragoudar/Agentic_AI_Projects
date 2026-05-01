@@ -1,0 +1,899 @@
+Prompt for Droid:
+
+Build a Stock & Crypto Morning Brief System — a multi-agent AI pipeline
+that fetches live market data, analyses sentiment, scores your watchlist,
+and delivers a clean brief every morning before markets open.
+Fully containerized with Docker. 3D animated React frontend.
+India-focused: NSE/BSE stocks + Crypto + Telegram delivery.
+100% free tools except OpenAI (use Groq instead — free).
+
+==================================================
+COLOR PALETTE (use everywhere — no blue anywhere):
+  Background:   #0A0A0A  (Void Black — page bg)
+  Surface:      #141414  (Surface Black — cards, panels)
+  Accent:       #10B981  (Emerald Green — CTAs, up prices, highlights)
+  Text:         #C0C0C0  (Silver — body text, labels)
+  Border:       #1E1E1E  (Charcoal — dividers, card borders)
+  Down/Alert:   #EF4444  (Red — price drops, warnings)
+  Muted text:   #555555  (Dark gray — timestamps, hints)
+==================================================
+
+==================================================
+WHAT THIS SYSTEM DOES:
+- Agent 1 Fetcher     → fetches live prices + news headlines via free APIs
+- Agent 2 Sentiment   → Groq LLM analyses market mood per stock/crypto
+- Agent 3 Scorer      → scores each ticker against your watchlist preferences
+- Agent 4 Formatter   → writes Markdown brief + sends to Telegram
+- 5 Docker containers run sequentially via docker compose up
+- 3D animated React frontend displays your live watchlist + morning brief
+==================================================
+
+--------------------------------------------------
+
+PROJECT STRUCTURE:
+
+stock-morning-brief/
+├── agents/
+│   ├── fetcher/
+│   │   ├── app.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── sentiment/
+│   │   ├── app.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── scorer/
+│   │   ├── app.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   └── formatter/
+│       ├── app.py
+│       ├── Dockerfile
+│       └── requirements.txt
+├── frontend/
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   ├── package.json
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx
+│       ├── styles/
+│       │   └── globals.css
+│       ├── components/
+│       │   ├── Navbar.jsx
+│       │   ├── HeroSection.jsx
+│       │   ├── WatchlistSection.jsx
+│       │   ├── TickerCard.jsx
+│       │   ├── SentimentBadge.jsx
+│       │   ├── AlertsSection.jsx
+│       │   ├── MorningBriefSection.jsx
+│       │   ├── HowItWorksSection.jsx
+│       │   └── CustomCursor.jsx
+│       ├── three/
+│       │   ├── ParticleField.jsx     ← floating emerald particle bg
+│       │   ├── CandlestickScene.jsx  ← 3D rotating candlestick chart
+│       │   └── FloatingCoins.jsx     ← 3D floating coin objects
+│       └── hooks/
+│           ├── useScrollAnimation.js ← GSAP ScrollTrigger hooks
+│           └── useMarketData.js      ← fetches from FastAPI
+├── backend/
+│   └── app/
+│       ├── main.py                   ← FastAPI serving brief + watchlist data
+│       ├── Dockerfile
+│       └── requirements.txt
+├── data/
+│   ├── watchlist.json                ← your tickers + preferences
+│   ├── fetched.json                  ← agent 1 output
+│   ├── sentiment.json                ← agent 2 output
+│   ├── scored.json                   ← agent 3 output
+│   └── briefs/
+│       └── YYYY-MM-DD.md             ← daily brief archives
+├── output/
+│   └── morning_brief.md              ← today's final brief
+├── .env
+├── .gitignore
+├── docker-compose.yml
+└── README.md
+
+--------------------------------------------------
+
+WATCHLIST CONFIG (data/watchlist.json):
+
+{
+  "stocks": {
+    "indian": [
+      "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS",
+      "INFY.NS", "WIPRO.NS", "NIFTY50.NS"
+    ],
+    "us": ["NVDA", "GOOGL", "MSFT", "AAPL"]
+  },
+  "crypto": [
+    "bitcoin", "ethereum", "solana", "matic-network"
+  ],
+  "indices": ["^NSEI", "^BSESN"],
+  "preferences": {
+    "investor_type": "long_term",
+    "risk_appetite": "medium",
+    "preferred_sectors": ["technology", "finance", "energy"],
+    "alert_on_volume_spike": true,
+    "volume_spike_multiplier": 2.5,
+    "alert_on_price_change_pct": 3.0,
+    "minimum_score_to_highlight": 70
+  },
+  "delivery": {
+    "telegram_chat_id": "your_chat_id",
+    "run_time_ist": "08:30",
+    "timezone": "Asia/Kolkata"
+  }
+}
+
+--------------------------------------------------
+
+AGENT 1 — FETCHER (agents/fetcher/app.py):
+
+Purpose:
+  Fetch live prices, % change, volume for all tickers in watchlist.json
+  Fetch top 3 news headlines per ticker
+  Save combined result to data/fetched.json
+
+Libraries (all free):
+  yfinance          → Indian + US stock prices, % change, volume, 52w high/low
+  requests          → CoinGecko API for crypto prices
+  feedparser        → RSS feeds for Indian market news
+
+Data sources:
+  yfinance library:
+    ticker = yf.Ticker("RELIANCE.NS")
+    info = ticker.fast_info
+    Extracts: last_price, previous_close, pct_change, volume,
+              day_high, day_low, week_52_high, week_52_low
+    Handles both .NS (NSE) and plain US tickers
+
+  CoinGecko API (free, no key needed, 30 calls/min):
+    GET https://api.coingecko.com/api/v3/simple/price
+    ?ids=bitcoin,ethereum,solana,matic-network
+    &vs_currencies=inr,usd
+    &include_24hr_change=true
+    &include_market_cap=true
+    Extracts: price_inr, price_usd, pct_change_24h, market_cap
+
+  News RSS feeds (free, no key, unlimited):
+    Moneycontrol:  https://www.moneycontrol.com/rss/latestnews.xml
+    Economic Times: https://economictimes.indiatimes.com/markets/rss.cms
+    Livemint:      https://www.livemint.com/rss/markets
+    CoinDesk RSS:  https://www.coindesk.com/arc/outboundfeeds/rss/
+    Parse with feedparser, filter by ticker/company name mention
+    Return top 3 headlines per ticker
+
+Logging:
+  logger = logging.getLogger("fetcher")
+  logging.basicConfig(
+      level=logging.INFO,
+      format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  )
+
+Error handling:
+  Wrap each ticker fetch in try/except
+  If one ticker fails: log warning, continue others
+  If no data at all: write empty fetched.json, log error — do NOT crash
+
+Output format (data/fetched.json):
+  {
+    "fetched_at": "2026-04-28T08:00:00+05:30",
+    "market_open_minutes": 45,
+    "stocks": {
+      "RELIANCE.NS": {
+        "name": "Reliance Industries",
+        "price": 2847.50,
+        "currency": "INR",
+        "pct_change": 1.24,
+        "volume": 4520000,
+        "day_high": 2861.00,
+        "day_low": 2830.00,
+        "week_52_high": 3017.00,
+        "week_52_low": 2220.00,
+        "news": [
+          {"title": "...", "source": "Moneycontrol", "url": "..."},
+          {"title": "...", "source": "Economic Times", "url": "..."}
+        ]
+      }
+    },
+    "crypto": {
+      "bitcoin": {
+        "name": "Bitcoin",
+        "price_inr": 5380000,
+        "price_usd": 64200,
+        "pct_change_24h": 3.12,
+        "market_cap_usd": 1260000000000,
+        "news": [...]
+      }
+    },
+    "indices": {
+      "^NSEI": { "name": "NIFTY 50", "price": 22450, "pct_change": -0.34 }
+    }
+  }
+
+requirements.txt:
+  yfinance
+  requests
+  feedparser
+
+Dockerfile:
+  FROM python:3.10-slim
+  WORKDIR /app
+  COPY requirements.txt .
+  RUN pip install --no-cache-dir -r requirements.txt
+  COPY app.py .
+  CMD ["python", "app.py"]
+
+--------------------------------------------------
+
+AGENT 2 — SENTIMENT (agents/sentiment/app.py):
+
+Purpose:
+  Read data/fetched.json
+  For each ticker, send price data + news headlines to Groq LLM
+  Get back: sentiment label + one-line reason + confidence score
+  Save to data/sentiment.json
+
+LLM Integration (Groq — free, 14,400 req/day):
+  from groq import Groq
+  client = Groq(api_key=os.environ["GROQ_API_KEY"])
+
+  Model: llama3-70b-8192
+  Temperature: 0.2 (low = consistent, focused output)
+  Max tokens: 200 per ticker
+
+System prompt:
+  "You are a financial market analyst. Given stock/crypto price data
+  and recent news headlines, respond ONLY with valid JSON in this format:
+  {
+    'sentiment': 'Bullish' or 'Bearish' or 'Neutral',
+    'confidence': 0-100,
+    'reason': 'One sentence explaining the sentiment'
+  }
+  Base your analysis on price movement + news tone. Be concise."
+
+User prompt per ticker:
+  "Ticker: {name}
+   Price change: {pct_change}%
+   News headlines:
+   - {headline_1}
+   - {headline_2}
+   - {headline_3}
+   Analyse market sentiment."
+
+Retry logic:
+  MAX_RETRIES = 3
+  On rate limit: wait exponentially (2s, 4s, 8s) then retry
+  On failure after retries: sentiment = Neutral, confidence = 0,
+  reason = "Sentiment analysis unavailable"
+  Never crashes — always writes output even if LLM fails
+
+Output (data/sentiment.json):
+  {
+    "analysed_at": "...",
+    "results": {
+      "RELIANCE.NS": {
+        "sentiment": "Bullish",
+        "confidence": 82,
+        "reason": "Strong price gain with positive Q4 earnings news"
+      },
+      "bitcoin": {
+        "sentiment": "Bullish",
+        "confidence": 78,
+        "reason": "ETF inflows surge with 3% price gain overnight"
+      }
+    }
+  }
+
+requirements.txt:
+  groq
+
+--------------------------------------------------
+
+AGENT 3 — SCORER (agents/scorer/app.py):
+
+Purpose:
+  Read data/fetched.json + data/sentiment.json + data/watchlist.json
+  Score every ticker 0-100 based on multiple signals
+  Generate alerts for unusual activity
+  Save to data/scored.json
+
+No LLM — pure Python logic, deterministic, free.
+
+Scoring formula (total 100 points):
+
+  Sentiment score (40 points):
+    Bullish  + confidence → map to 25-40 pts
+    Neutral  + confidence → map to 10-24 pts
+    Bearish  + confidence → map to 0-9 pts
+
+  Price momentum score (30 points):
+    pct_change >= +3%  → 30 pts
+    pct_change >= +1%  → 22 pts
+    pct_change >= 0%   → 15 pts
+    pct_change >= -1%  → 8 pts
+    pct_change < -1%   → 0 pts
+
+  Volume signal score (15 points):
+    volume > 2.5x average → 15 pts (unusual — big move likely)
+    volume > 1.5x average → 10 pts
+    volume normal         → 5 pts
+
+  Sector preference score (15 points):
+    Ticker sector in preferred_sectors list → 15 pts
+    Sector not in preferences              → 5 pts
+
+Alert generation:
+  Generate alert if any of:
+    abs(pct_change) >= alert_on_price_change_pct (default 3%)
+    volume > volume_spike_multiplier × avg_volume (default 2.5×)
+    price crossed 52-week high
+    price crossed 52-week low
+
+Output (data/scored.json):
+  {
+    "scored_at": "...",
+    "overall_market_mood": "Cautious",
+    "scores": {
+      "RELIANCE.NS": {
+        "score": 82,
+        "rank": 1,
+        "highlight": true,
+        "alerts": []
+      },
+      "HDFCBANK.NS": {
+        "score": 45,
+        "rank": 6,
+        "highlight": false,
+        "alerts": ["Volume 3.1x above average"]
+      }
+    }
+  }
+
+requirements.txt: empty (stdlib only)
+
+--------------------------------------------------
+
+AGENT 4 — FORMATTER (agents/formatter/app.py):
+
+Purpose:
+  Read all three data files (fetched, sentiment, scored)
+  Write final Markdown morning brief to output/morning_brief.md
+  Archive to data/briefs/YYYY-MM-DD.md
+  Send brief to Telegram via Bot API
+
+Telegram delivery (free, no limits):
+  import requests
+  BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+  CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+  url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+  Send as markdown_v2 format
+  Split into chunks if > 4096 chars (Telegram message limit)
+
+Output format (output/morning_brief.md):
+
+  # Morning Market Brief
+  **Date:** Monday, 28 April 2026
+  **Generated:** 08:30 IST | Markets open in 45 minutes
+
+  ## Market Mood: Cautious
+
+  ---
+
+  ## Indices
+  | Index    | Level  | Change  |
+  |----------|--------|---------|
+  | NIFTY 50 | 22,450 | -0.34% |
+  | SENSEX   | 73,820 | -0.28% |
+
+  ---
+
+  ## Top Picks (Score 70+)
+
+  ### RELIANCE.NS — Reliance Industries
+  Price: ₹2,847 | Change: +1.24% | Score: 82/100
+  Sentiment: Bullish (82% confidence)
+  Reason: Strong price gain with positive Q4 earnings news
+  Headlines:
+  - Reliance Q4 profit beats estimates by 12%
+  - Jio adds record 8M subscribers in March
+
+  ### BITCOIN
+  Price: ₹53,80,000 ($64,200) | Change: +3.12% | Score: 79/100
+  Sentiment: Bullish (78% confidence)
+  Reason: ETF inflows surge with 3% price gain overnight
+
+  ---
+
+  ## Alerts
+  - HDFCBANK.NS: Volume 3.1x above average
+  - BTC: Crossed 7-day high of $62,800
+  - NIFTY 50: Pre-market down 0.34%
+
+  ---
+  _Brief generated by Stock Morning Brief Agent_
+
+requirements.txt:
+  requests
+
+--------------------------------------------------
+
+DOCKER COMPOSE (docker-compose.yml):
+
+version: "3.9"
+
+services:
+
+  fetcher:
+    build: ./agents/fetcher
+    container_name: agent_fetcher
+    env_file: .env
+    volumes:
+      - ./data:/data
+    restart: "no"
+
+  sentiment:
+    build: ./agents/sentiment
+    container_name: agent_sentiment
+    env_file: .env
+    depends_on:
+      fetcher:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: "no"
+
+  scorer:
+    build: ./agents/scorer
+    container_name: agent_scorer
+    depends_on:
+      sentiment:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/data
+    restart: "no"
+
+  formatter:
+    build: ./agents/formatter
+    container_name: agent_formatter
+    env_file: .env
+    depends_on:
+      scorer:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/data
+      - ./output:/output
+    restart: "no"
+
+  backend:
+    build: ./backend
+    container_name: stock_backend
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+      - ./output:/output
+    restart: unless-stopped
+
+CRITICAL:
+  depends_on condition: service_completed_successfully
+  Waits for each container to EXIT before starting next.
+  Without this, next agent starts before previous writes its file.
+  restart: "no" for all agents — they run once and exit.
+  restart: unless-stopped for backend — it runs continuously.
+
+--------------------------------------------------
+
+FASTAPI BACKEND (backend/app/main.py):
+
+Purpose:
+  Serve market data + brief to React frontend via REST API
+  Reads from data/ folder — does NOT run agents
+
+Endpoints:
+  GET /api/brief/today        → returns output/morning_brief.md as JSON
+  GET /api/watchlist/scores   → returns data/scored.json
+  GET /api/watchlist/sentiment → returns data/sentiment.json
+  GET /api/watchlist/prices   → returns data/fetched.json
+  GET /api/alerts             → returns active alerts from scored.json
+  GET /api/health             → health check
+
+All responses include CORS headers for React frontend.
+
+requirements.txt:
+  fastapi
+  uvicorn[standard]
+  python-dotenv
+
+--------------------------------------------------
+
+ENVIRONMENT VARIABLES (.env):
+
+GROQ_API_KEY=your_groq_api_key_here
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
+
+.gitignore must include:
+  .env
+  data/fetched.json
+  data/sentiment.json
+  data/scored.json
+  output/
+  __pycache__/
+  *.pyc
+  node_modules/
+
+--------------------------------------------------
+
+FRONTEND (React + Vite + Tailwind CSS + Three.js + GSAP + Lenis):
+
+COLOR PALETTE (apply consistently across all components):
+  --bg-void:      #0A0A0A   page background
+  --bg-surface:   #141414   cards, panels, navbar
+  --bg-surface2:  #1A1A1A   hover states, nested cards
+  --accent:       #10B981   emerald — CTAs, up prices, highlights, glows
+  --text-primary: #C0C0C0   silver — body text, labels
+  --text-muted:   #555555   timestamps, hints, disabled
+  --border:       #1E1E1E   card borders, dividers
+  --red:          #EF4444   down prices, alerts, bearish
+  --red-bg:       #2E0505   bearish badge backgrounds
+  --green-bg:     #052E1A   bullish badge backgrounds
+
+Global CSS (src/styles/globals.css):
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { background: #0A0A0A; color: #C0C0C0; font-family: 'Inter', sans-serif; }
+  body { overflow-x: hidden; cursor: none; }
+  ::selection { background: #10B981; color: #0A0A0A; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #0A0A0A; }
+  ::-webkit-scrollbar-thumb { background: #10B981; border-radius: 2px; }
+
+Libraries (all free):
+  three                   3D scenes, particle fields, floating coins
+  @react-three/fiber      React wrapper for Three.js
+  @react-three/drei       Three.js helpers (Float, Stars, Text3D)
+  gsap                    scroll animations, text reveals, counters
+  @gsap/react             GSAP React hooks
+  lenis                   smooth inertia scroll (floema-style)
+  axios                   API calls to FastAPI backend
+  lucide-react            icons
+  react-hot-toast         notifications
+
+package.json dependencies:
+  react, react-dom
+  three
+  @react-three/fiber
+  @react-three/drei
+  gsap
+  @gsap/react
+  lenis
+  axios
+  lucide-react
+  react-hot-toast
+
+devDependencies:
+  vite
+  @vitejs/plugin-react
+  tailwindcss
+  autoprefixer
+  postcss
+
+--------------------------------------------------
+
+FRONTEND COMPONENTS — DETAILED:
+
+Navbar.jsx:
+  Fixed top, background: rgba(10,10,10,0.85) + backdrop-blur
+  Logo left: emerald dot + "MarketBrief" in silver
+  Links center: Watchlist | Brief | Alerts | How It Works
+  Status right: green pulse dot + "Markets Open in 42 min"
+  Border bottom: 1px solid #1E1E1E
+  On scroll past hero: navbar slides in with GSAP
+
+CustomCursor.jsx:
+  Hides default cursor (cursor: none on body)
+  Two elements:
+    Dot: 8px circle, background #10B981, follows mouse exactly
+    Ring: 32px circle border #10B981 0.4 opacity, follows with 0.1s lag
+  On hover over clickable element: ring scales to 2× + fills slightly
+  Implemented with useEffect + requestAnimationFrame
+
+HeroSection.jsx — Full Screen 3D Opening:
+  Full viewport height section
+  Background: #0A0A0A with ParticleField canvas behind everything
+
+  ParticleField (three/ParticleField.jsx):
+    Three.js Canvas filling the full hero background
+    1500 particles as tiny points geometry
+    Color: #10B981 at 0.6 opacity
+    Particles drift slowly upward + gentle random X drift
+    Mouse parallax: particles shift slightly toward cursor position
+    Implemented with useFrame in @react-three/fiber
+
+  CandlestickScene (three/CandlestickScene.jsx):
+    Right side of hero: rotating 3D candlestick chart
+    Build 12 candlestick bars using BoxGeometry
+    Green bars (#10B981): price up candles
+    Red bars (#EF4444): price down candles
+    Thin wick lines using CylinderGeometry
+    Group rotates slowly on Y axis (autoRotate)
+    Gentle Float animation from @react-three/drei
+
+  Left side text (animates in with GSAP on load):
+    Small label: "AI-POWERED MARKET INTELLIGENCE" (emerald, 11px, spaced)
+    H1 large: "Your market." (silver, 64px)
+          then "Every morning." (emerald, 64px)
+    Subtext: "4 AI agents fetch, analyse and score your watchlist
+              before NSE opens at 9:15 AM IST"
+    CTA button: "View Today's Brief" — emerald bg, black text,
+                16px, border-radius 8px, hover: scale(1.03)
+    Market status pill: "NIFTY 50  22,450  -0.34%" — live from API
+
+  Text reveal animation (GSAP):
+    Each word of H1 starts y:40 opacity:0
+    Staggers in over 0.8s on page load
+    CTA button fades in after text completes
+
+WatchlistSection.jsx — Scroll-triggered cards:
+  Section background: #0A0A0A
+  Section heading reveals on scroll (GSAP ScrollTrigger)
+  "Today's Watchlist" left, "Score" right header
+
+  TickerCard.jsx — one card per ticker:
+    Background: #141414
+    Border: 1px solid #1E1E1E
+    Border-radius: 12px
+    Padding: 20px
+    On hover: border-color → #10B981 (0.4 opacity), subtle scale(1.01)
+
+    Card layout:
+      Top row: Company name (silver) + ticker symbol (muted) + score badge
+      Score badge: emerald bg (#052E1A) with emerald text, "82 / 100"
+      Price row: large price (silver, monospace) + % change (emerald/red)
+      % change: colored pill — green bg for up, red bg for down
+      Sentiment row: SentimentBadge + confidence bar
+      News row: latest headline in muted text, 1 line truncated
+      Bottom: "View more" link in emerald
+
+    Price counter animation (GSAP):
+      When card scrolls into view, price counts up from 0 to actual value
+      Duration: 1.2s, ease: power2.out
+
+    SentimentBadge.jsx:
+      Bullish  → background #052E1A, text #10B981, dot #10B981
+      Bearish  → background #2E0505, text #EF4444, dot #EF4444
+      Neutral  → background #1A1A1A, text #C0C0C0, dot #555
+
+    Card scroll animation (GSAP ScrollTrigger):
+      Cards start: y:60 opacity:0
+      Stagger 0.15s between each card as section scrolls into view
+
+  FloatingCoins (three/FloatingCoins.jsx):
+    Right side of watchlist section: 3 floating 3D coin objects
+    Use CylinderGeometry (flat, like a coin — radiusTop=1, height=0.12)
+    Materials: MeshStandardMaterial with metalness:0.9, roughness:0.1
+    BTC coin: gold color (#F7931A)
+    ETH coin: silver color (#C0C0C0)
+    SOL coin: emerald color (#10B981)
+    Float animation via @react-three/drei Float component
+    Each coin rotates on its own axis slowly
+    Ambient light + point light from above
+
+AlertsSection.jsx:
+  Full width dark section background #0A0A0A
+  Heading: "Live Alerts" with emerald left border
+  Alert items slide in from left on scroll (GSAP)
+  Each alert:
+    Left: colored dot (emerald = positive, red = warning)
+    Center: alert text in silver monospace font
+    Right: timestamp in muted gray
+  Separating lines: 1px #1E1E1E between alerts
+
+MorningBriefSection.jsx — Horizontal scroll:
+  Inspired by floema's horizontal product scroll
+  As user scrolls DOWN vertically, section scrolls HORIZONTALLY
+  Implemented with GSAP ScrollTrigger pin + horizontal tween
+
+  Shows 4 brief cards (one per major section of the brief):
+    Card 1: Market Indices overview
+    Card 2: Top Picks (score 70+)
+    Card 3: Crypto Brief
+    Card 4: Full brief + download button
+
+  Each card:
+    Width: 380px, height: 480px
+    Background: #141414
+    Border: 1px solid #1E1E1E
+    Padding: 32px
+    Mouse tilt effect: card tilts 5deg on mouse move (CSS transform)
+
+HowItWorksSection.jsx — 3D Docker containers:
+  Section heading: "How It Works"
+  4 floating 3D box objects (representing Docker containers)
+  Built with BoxGeometry + EdgesGeometry (wireframe edges in emerald)
+  Each box is hollow wireframe style — #10B981 edges on dark background
+  Inside each box: Text3D label from @react-three/drei
+    "Fetcher", "Sentiment", "Scorer", "Formatter"
+  Boxes drop into frame with GSAP + ScrollTrigger one by one
+  Arrow lines connecting boxes (Three.js Line)
+  Below each box: description in silver text
+
+Lenis Smooth Scroll setup (main.jsx):
+  import Lenis from 'lenis'
+  const lenis = new Lenis({
+    duration: 1.4,
+    easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+    smooth: true,
+  })
+  Connect to GSAP ticker:
+    gsap.ticker.add((time) => { lenis.raf(time * 1000) })
+  This gives the floema-style smooth inertia scroll
+
+--------------------------------------------------
+
+AUTOMATION — DAILY SCHEDULING:
+
+Linux / macOS (cron — runs at 8:00 AM IST every day):
+  0 8 * * * cd /path/to/stock-morning-brief && docker compose up
+
+Windows Task Scheduler:
+  Action: docker compose up
+  Working directory: project folder
+  Trigger: Daily 08:00
+
+The pipeline takes ~2 minutes to complete.
+Brief arrives on Telegram by 8:05 AM, before NSE opens at 9:15 AM.
+
+--------------------------------------------------
+
+COST & LIMITATIONS:
+
+FULLY FREE:
+  yfinance           unlimited stock price data
+  CoinGecko API      30 calls/min free, no key needed
+  RSS feeds          unlimited — Moneycontrol, ET, Livemint
+  Groq LLM           14,400 requests/day free (llama3-70b-8192)
+  Telegram Bot       completely free, no message limits
+  Docker             free
+  All frontend libs  Three.js, GSAP, Lenis, React — all open source
+
+LIMITATIONS:
+  yfinance           unofficial Yahoo Finance wrapper — may break
+                     occasionally if Yahoo changes their API
+                     Wrap all calls in try/except, graceful fallback
+  CoinGecko          rate limited at 30 calls/min on free tier
+                     Add time.sleep(2) between crypto calls
+  News RSS           headlines only, no full article text
+                     Enough for sentiment — not for deep analysis
+  Groq free tier     14,400 req/day — more than sufficient for
+                     personal watchlist of 10-15 tickers
+
+ZERO PAID SERVICES REQUIRED.
+
+--------------------------------------------------
+
+RUN COMMANDS:
+
+First time:
+  docker compose build
+  cd frontend && npm install
+
+Run agents pipeline (morning brief):
+  docker compose up fetcher sentiment scorer formatter
+
+Start frontend dev server:
+  cd frontend && npm run dev
+
+Start backend API:
+  docker compose up backend
+
+Run everything:
+  docker compose up
+
+View today's brief:
+  cat output/morning_brief.md
+
+Check specific agent logs:
+  docker logs agent_fetcher
+  docker logs agent_sentiment
+
+Rebuild after code change:
+  docker compose build --no-cache && docker compose up
+
+--------------------------------------------------
+
+BUILD ORDER (phase by phase):
+
+Phase 1 — Core pipeline (build first, real value from day 1):
+  Agent 1 Fetcher + Agent 4 Formatter + Telegram delivery
+  Run docker compose up → brief arrives on phone every morning
+  No LLM, no sentiment yet — just prices + headlines
+
+Phase 2 — Add intelligence:
+  Agent 2 Sentiment (Groq) + Agent 3 Scorer
+  Brief now includes AI sentiment + ranked watchlist
+
+Phase 3 — Backend + Basic Frontend:
+  FastAPI backend + React dashboard with ticker cards
+  See your watchlist live in the browser
+
+Phase 4 — 3D Frontend:
+  Add Three.js ParticleField + CandlestickScene + FloatingCoins
+  Add GSAP scroll animations + Lenis smooth scroll
+  Add CustomCursor + horizontal brief scroll section
+
+Phase 5 — Polish:
+  HowItWorks 3D Docker containers section
+  Mobile responsive adjustments
+  Archive viewer for past briefs
+
+--------------------------------------------------
+
+FREE SERVICES SETUP:
+
+1. Groq API Key     → https://console.groq.com (free)
+2. Telegram Bot     → @BotFather on Telegram → /newbot (free)
+3. Docker Desktop   → https://docker.com (free)
+4. CoinGecko        → no key needed, just call the API
+
+--------------------------------------------------
+
+KEY DESIGN DECISIONS:
+
+1. Groq instead of OpenAI — completely free, llama3-70b is excellent
+   for sentiment classification tasks on financial headlines
+
+2. RSS feeds instead of NewsAPI — unlimited and free vs 100/day limit
+   Moneycontrol + Economic Times cover Indian markets comprehensively
+
+3. service_completed_successfully in depends_on — waits for each
+   container to EXIT before starting next, prevents race conditions
+
+4. Backend as a separate always-on container — agents run and exit,
+   backend serves the data to React continuously
+
+5. Horizontal scroll brief section — inspired by floema, adds the
+   premium immersive feel without complex WebGL for that section
+
+6. Three.js via @react-three/fiber — cleaner React integration than
+   raw Three.js imperative code, easier to maintain
+
+7. Lenis duration 1.4 — slightly slower than default gives that
+   luxury smooth scroll feeling like floema
+
+8. Custom cursor — signature detail of premium 3D websites,
+   immediately sets your site apart from generic dashboards
+
+--------------------------------------------------
+
+PREREQUISITES:
+
+  Docker Desktop  → docker.com
+  Node.js 18+     → nodejs.org
+  Python 3.10+    → python.org (only for local testing outside Docker)
+  Git             → git-scm.com
+
+Verify:
+  docker --version          # 20.10+
+  docker compose version    # v2.x
+  node --version            # 18+
+  npm --version             # 9+
+
+--------------------------------------------------
+
+Use pip inside Docker for backend packages.
+Use npm for frontend packages.
+
+--------------------------------------------------
+
+Copy this prompt to recreate the project on another system.
+
+Auto (Off) - all actions require approval

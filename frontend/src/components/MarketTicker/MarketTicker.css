@@ -1,0 +1,92 @@
+/* MarketTicker Component Styles */
+
+.market-ticker {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(37, 8, 66, 0.5) 0%, rgba(26, 5, 51, 0.3) 100%);
+  border: 1px solid rgba(139, 153, 255, 0.1);
+  transition: all 0.2s ease;
+  min-width: 300px;
+}
+
+.market-ticker__symbol {
+  font-weight: 600;
+  color: var(--on-surface);
+  min-width: 50px;
+  text-transform: uppercase;
+}
+
+.market-ticker__price {
+  color: var(--primary);
+  flex: 1;
+  text-align: right;
+}
+
+.market-ticker__change {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 120px;
+  text-align: right;
+}
+
+.market-ticker__arrow {
+  font-weight: bold;
+  font-size: 18px;
+}
+
+/* Profit State */
+.market-ticker--profit {
+  border-color: rgba(0, 179, 134, 0.2);
+}
+
+.market-ticker--profit:hover {
+  border-color: rgba(0, 179, 134, 0.3);
+  box-shadow: 0 0 30px rgba(0, 179, 134, 0.15),
+              inset 0 0 20px rgba(0, 179, 134, 0.05);
+}
+
+.market-ticker--profit .profit {
+  color: var(--profit-green);
+  text-shadow: 0 0 10px rgba(0, 179, 134, 0.5);
+}
+
+/* Loss State */
+.market-ticker--loss {
+  border-color: rgba(239, 83, 80, 0.2);
+}
+
+.market-ticker--loss:hover {
+  border-color: rgba(239, 83, 80, 0.3);
+  box-shadow: 0 0 30px rgba(239, 83, 80, 0.15),
+              inset 0 0 20px rgba(239, 83, 80, 0.05);
+}
+
+.market-ticker--loss .loss {
+  color: var(--loss-red);
+  text-shadow: 0 0 10px rgba(239, 83, 80, 0.5);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .market-ticker {
+    min-width: auto;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+  }
+
+  .market-ticker__symbol {
+    min-width: 40px;
+  }
+
+  .market-ticker__price {
+    flex: 0 1 auto;
+  }
+
+  .market-ticker__change {
+    min-width: auto;
+  }
+}
