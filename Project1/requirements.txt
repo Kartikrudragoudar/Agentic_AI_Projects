@@ -1,0 +1,79 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# BACKEND DEPENDENCIES (Python)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ─── Web Framework ───────────────────────────────────────────────────────────
+fastapi
+uvicorn[standard]
+python-multipart
+
+# ─── Database & Auth ─────────────────────────────────────────────────────────
+sqlalchemy
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+
+# ─── Validation ──────────────────────────────────────────────────────────────
+pydantic[email]
+pydantic-settings
+email-validator
+phonenumbers
+
+# ─── AI / LLM ────────────────────────────────────────────────────────────────
+groq
+langchain
+langchain-core
+langchain-groq
+langchain-community
+langgraph
+
+# ─── Speech & Machine Learning ───────────────────────────────────────────────
+torch
+torchvision
+torchaudio
+openai-whisper
+transformers<5.0.0
+soundfile
+numpy
+IndicTransToolkit
+
+# ─── Translation (IndicTrans2 dependencies) ──────────────────────────────────
+indic-transliteration
+sentencepiece
+sacremoses
+
+# ─── HTTP & Utilities ────────────────────────────────────────────────────────
+httpx
+requests
+python-dotenv
+pyyaml
+tenacity
+redis
+
+# ─── Logging & Ops ───────────────────────────────────────────────────────────
+loguru
+python-json-logger
+prometheus-client
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# FRONTEND DEPENDENCIES (Node.js / npm)
+# (Listed for reference; manage via 'npm install' in frontend folder)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# Production:
+# - react
+# - react-dom
+# - axios
+# - lucide-react
+# - react-hot-toast
+# - uuid
+#
+# Development/Build:
+# - vite
+# - tailwindcss
+# - autoprefixer
+# - postcss
+# - @vitejs/plugin-react
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
