@@ -1,0 +1,22 @@
+{
+  "stocks": {
+    "indian": ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "WIPRO.NS"],
+    "us": ["NVDA", "GOOGL", "MSFT", "AAPL"]
+  },
+  "crypto": ["bitcoin", "ethereum", "solana", "matic-network"],
+  "indices": ["^NSEI", "^BSESN"],
+  "preferences": {
+    "investor_type": "long_term",
+    "risk_appetite": "medium",
+    "preferred_sectors": ["technology", "finance", "energy"],
+    "alert_on_volume_spike": true,
+    "volume_spike_multiplier": 2.5,
+    "alert_on_price_change_pct": 3.0,
+    "minimum_score_to_highlight": 70
+  },
+  "delivery": {
+    "telegram_chat_id": "your_chat_id",
+    "run_time_ist": "08:30",
+    "timezone": "Asia/Kolkata"
+  }
+}

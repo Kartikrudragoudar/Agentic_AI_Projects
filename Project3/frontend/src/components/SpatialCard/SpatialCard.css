@@ -1,0 +1,76 @@
+/* SpatialCard Component Styles */
+
+.spatial-card {
+  background: linear-gradient(135deg, rgba(37, 8, 66, 0.8) 0%, rgba(26, 5, 51, 0.6) 100%);
+  border: 1px solid rgba(139, 153, 255, 0.1);
+  border-top: 1px solid rgba(139, 153, 255, 0.2);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 20px 60px rgba(139, 153, 255, 0.08),
+              inset 0 1px 0 rgba(139, 153, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.320, 1);
+  transform-style: preserve-3d;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Light reflection effect */
+.spatial-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(139, 153, 255, 0.3), transparent);
+  pointer-events: none;
+}
+
+/* Hover State */
+.spatial-card:hover {
+  border-color: rgba(139, 153, 255, 0.2);
+  box-shadow: 0 40px 80px rgba(139, 153, 255, 0.12),
+              inset 0 1px 0 rgba(139, 153, 255, 0.15);
+  background: linear-gradient(135deg, rgba(37, 8, 66, 0.9) 0%, rgba(26, 5, 51, 0.7) 100%);
+}
+
+/* Elevation States */
+.spatial-card.elevation-sm {
+  box-shadow: 0 10px 30px rgba(139, 153, 255, 0.06);
+}
+
+.spatial-card.elevation-md {
+  box-shadow: 0 20px 60px rgba(139, 153, 255, 0.08);
+}
+
+.spatial-card.elevation-lg {
+  box-shadow: 0 40px 100px rgba(139, 153, 255, 0.12);
+}
+
+.spatial-card.elevation-hover:hover {
+  transform: translateZ(50px);
+}
+
+/* Interactive State */
+.spatial-card[role='button'] {
+  cursor: pointer;
+}
+
+.spatial-card[role='button']:active {
+  transform: translateZ(10px);
+}
+
+/* Focus State */
+.spatial-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .spatial-card {
+    padding: var(--spacing-md);
+  }
+}

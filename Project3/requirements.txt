@@ -1,0 +1,8 @@
+# Root requirements.txt - Master list for all components
+yfinance
+requests
+feedparser
+python-dotenv
+groq
+fastapi
+uvicorn[standard]
